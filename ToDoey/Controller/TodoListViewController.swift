@@ -10,7 +10,7 @@ import UIKit
 
 class TodoListViewController: UITableViewController {
     
-    let itemArray = ["Find Milk","Buy Eggs","Destroy Demogorgon"]
+    var itemArray = ["Find Milk","Buy Eggs","Destroy Demogorgon"]
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
@@ -19,6 +19,33 @@ class TodoListViewController: UITableViewController {
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
     }
+    
+    //MARK: - Add New Items
+    @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
+        
+        // var textField = UITextField()
+        let alert = UIAlertController(title: "Add New Todoey Item", message: "", preferredStyle: .alert)
+        
+        alert.addTextField { (alertTextField) in
+            alertTextField.placeholder = "Create new item"
+            // textField = alertTextField
+        }
+        
+        alert.addAction(UIAlertAction(title: "Add Item", style: .default, handler: { (action) in
+            // what will happen once the user clicks the Add Item button on our UIAlert
+            print((alert.textFields?[0].text)!)
+            let item = (alert.textFields?[0].text)!
+            // let item = textField.text!
+            if !item.isEmpty {
+                self.itemArray.append(item)
+                self.tableView.reloadData()
+            }
+        }))
+        
+        present(alert, animated: true, completion: nil)
+    }
+    
+    
     
     //MARK: - TableView Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
