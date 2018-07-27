@@ -14,32 +14,19 @@ class TodoListViewController: UITableViewController {
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
-    let defaults = UserDefaults.standard // This is going to get me a singleton object and it is thread safe.
-    /* We should not use UserDefaults for storing collections and large data. So we should not treat UserDefaults as a DB. Because even when we want to retrieve a small value, the whole plist file would get loaded in memory hence only store user preferences and defaults. It can not be used for heavy lifting. So it could be time and memory consuming if you store large amount of data in this. */
+    /* FileManager.default is a singleton object which contains lot of urls, in an organised manner. We just need to get one for document directory. ".userDomainMask" is the user's home directory. In case of "NSUserDefaults", plist got saved in the "Library" section of sandboxing but here in case of "NSCoder", we would save plist in "Document" section of sandboxing of an app. */
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    /* Suppose if you want to store multiple categories of items then you have different-2 plists for each of the categories instead of having one big plist. And retrieve the plist as and when needed. So by this way we prevented ourself from loading the whole big plist so NSCoder is memory efficient way than NSUserDefaults. And also there is another advantage of storing our custom objects. */ 
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
         
-        itemArray.append(Item(title: "Find Milk", done: false))
-        itemArray.append(Item(title: "Buy Eggos", done: false))
-        itemArray.append(Item(title: "Bring Paneer", done: false))
+        print(dataFilePath!)
         
-        // Retrieving the stored array, array is always of type [Any]?, from UserDefaults singleton object.
-        /* defaults.array(forKey: "todoListArray") is not going to crash even if key is not present in plist file, in that case it would return nil. Whenever you are retrieving something from UserDefaults using key, even if key does not exist then app would not crash, it would return default value like 0 or 0.0 in case of int, float and double and nil in case of optionals. */
-        // nil as? [String] is always nil.
-        if let todoListArray = defaults.array(forKey: Constants.itemArrayKey) as? [Item] {
-            itemArray = todoListArray
-        }
-        
-        /* defaults.synchronize() --> this method gets called by apple periodically to update the user defaults if any value has been added. You don't have to call this manually. */
-    }
-    
-    /* This would be called after the view has appeared. We are overriding this because at the time of view load, it might so happen that plist file inside the sandbox of app, does not get loaded. */
-    override func viewDidAppear(_ animated: Bool) {
-        
-        // Since this would be called after the tableView() methods, hence it is not prefered to fetch array here.
+        loadItems() // inorder to fetch the item array from "Item.plist".
     }
     
     //MARK: - Add New Items
@@ -61,9 +48,8 @@ class TodoListViewController: UITableViewController {
             // let item = textField.text!
             if !title.isEmpty {
                 self.itemArray.append(Item(title: title, done: false))
-                
-                /* Set the array in UserDefaults i.e in plist file inside the sandbox. While storing an array inside the UserDefault database, it is intelligent enough to determine the type of Array.  */
-                self.defaults.set(self.itemArray, forKey: Constants.itemArrayKey)
+    
+                self.saveData() // whenever we update itemArray, we need to encode and write that to the "Items.plist"
                 
                 self.tableView.reloadData()
             }
@@ -105,6 +91,8 @@ class TodoListViewController: UITableViewController {
 
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
+        saveData() // whenever we update itemArray, we need to encode and write that to the "Items.plist"
+        
         /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
         let cell = tableView.cellForRow(at: indexPath)
         if cell?.accessoryType == UITableViewCellAccessoryType.checkmark {
@@ -115,6 +103,33 @@ class TodoListViewController: UITableViewController {
         
         /*  no need to reload, as and when we set the property, it would be in action.
             tableView.reloadRows(at: [indexPath], with: .automatic) */
+    }
+    
+    
+    //MARK: - Model Manipulation Methods
+    func saveData() {
+        let encoder = PropertyListEncoder()
+        do {
+            /* encoding means converting one datatype to another datatype so that, that another datatype can be written to the plist. So here we converted the datatype from "Array<Item>" to "Data" */
+            let data = try encoder.encode(itemArray)
+            
+            // data is of "Data" datatype which can be written to the plist. So "Data" datatype is familier with the plist.
+            try data.write(to: dataFilePath!)
+        }catch let err as NSError{
+            print("Problem in encoding item array: \(err) ")
+        }
+    }
+    
+    func loadItems() {
+        if let data = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            do {
+                /* decoder is also a way to convert one datatype to another datatype so that we can have it back. Here it is conveting from "Data" datatype to Array<Item> datatype. */
+                itemArray = try decoder.decode([Item].self, from: data)
+            }catch {
+                print("Problem in decoding item array: \(error)")
+            }
+        }
     }
     
 }

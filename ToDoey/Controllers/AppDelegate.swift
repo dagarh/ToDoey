@@ -19,8 +19,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         
         // TodoListViewController class properties would be initialized even before this method call.
         
-        // Path to check for the plist file where user defaults are stored.
-        print(NSSearchPathForDirectoriesInDomains(.libraryDirectory, .userDomainMask, true).last! as String)
         return true
     }
 
