@@ -15,6 +15,7 @@ class TodoListViewController: UITableViewController {
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
     let defaults = UserDefaults.standard // This is going to get me a singleton object and it is thread safe.
+    /* We should not use UserDefaults for storing collections and large data. So we should not treat UserDefaults as a DB. Because even when we want to retrieve a small value, the whole plist file would get loaded in memory hence only store user preferences and defaults. It can not be used for heavy lifting. So it could be time and memory consuming if you store large amount of data in this. */
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,9 +25,11 @@ class TodoListViewController: UITableViewController {
         // Retrieving the stored array, array is always of type [Any]?, from UserDefaults singleton object.
         /* defaults.array(forKey: "todoListArray") is not going to crash even if key is not present in plist file, in that case it would return nil. Whenever you are retrieving something from UserDefaults using key, even if key does not exist then app would not crash, it would return default value like 0 or 0.0 in case of int, float and double and nil in case of optionals. */
         // nil as? [String] is always nil.
-        if let todoListArray = defaults.array(forKey: "todoListArray") as? [String] {
+        if let todoListArray = defaults.array(forKey: Constants.itemArrayKey) as? [String] {
             itemArray = todoListArray
         }
+        
+        /* defaults.synchronize() --> this method gets called by apple periodically to update the user defaults if any value has been added. You don't have to call this manually. */
     }
     
     /* This would be called after the view has appeared. We are overriding this because at the time of view load, it might so happen that plist file inside the sandbox of app, does not get loaded. */
@@ -47,6 +50,7 @@ class TodoListViewController: UITableViewController {
         }
         
         alert.addAction(UIAlertAction(title: "Add Item", style: .default, handler: { (action) in
+            
             // what will happen once the user clicks the Add Item button on our UIAlert
             print((alert.textFields?[0].text)!)
             let item = (alert.textFields?[0].text)!
@@ -57,7 +61,7 @@ class TodoListViewController: UITableViewController {
             }
             
             /* Set the array in UserDefaults i.e in plist file inside the sandbox. While storing an array inside the UserDefault database, it is intelligent enough to determine the type of Array.  */
-            self.defaults.set(self.itemArray, forKey: "todoListArray")
+            self.defaults.set(self.itemArray, forKey: Constants.itemArrayKey)
             
         }))
         
