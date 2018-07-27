@@ -10,7 +10,7 @@ import UIKit
 
 class TodoListViewController: UITableViewController {
     
-    var itemArray = ["Find Milk","Buy Eggs","Destroy Demogorgon"]
+    var itemArray = [Item]()
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
@@ -22,10 +22,14 @@ class TodoListViewController: UITableViewController {
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
         
+        itemArray.append(Item(title: "Find Milk", done: false))
+        itemArray.append(Item(title: "Buy Eggos", done: false))
+        itemArray.append(Item(title: "Bring Paneer", done: false))
+        
         // Retrieving the stored array, array is always of type [Any]?, from UserDefaults singleton object.
         /* defaults.array(forKey: "todoListArray") is not going to crash even if key is not present in plist file, in that case it would return nil. Whenever you are retrieving something from UserDefaults using key, even if key does not exist then app would not crash, it would return default value like 0 or 0.0 in case of int, float and double and nil in case of optionals. */
         // nil as? [String] is always nil.
-        if let todoListArray = defaults.array(forKey: Constants.itemArrayKey) as? [String] {
+        if let todoListArray = defaults.array(forKey: Constants.itemArrayKey) as? [Item] {
             itemArray = todoListArray
         }
         
@@ -53,22 +57,20 @@ class TodoListViewController: UITableViewController {
             
             // what will happen once the user clicks the Add Item button on our UIAlert
             print((alert.textFields?[0].text)!)
-            let item = (alert.textFields?[0].text)!
+            let title = (alert.textFields?[0].text)!
             // let item = textField.text!
-            if !item.isEmpty {
-                self.itemArray.append(item)
+            if !title.isEmpty {
+                self.itemArray.append(Item(title: title, done: false))
+                
+                /* Set the array in UserDefaults i.e in plist file inside the sandbox. While storing an array inside the UserDefault database, it is intelligent enough to determine the type of Array.  */
+                self.defaults.set(self.itemArray, forKey: Constants.itemArrayKey)
+                
                 self.tableView.reloadData()
             }
-            
-            /* Set the array in UserDefaults i.e in plist file inside the sandbox. While storing an array inside the UserDefault database, it is intelligent enough to determine the type of Array.  */
-            self.defaults.set(self.itemArray, forKey: Constants.itemArrayKey)
-            
         }))
         
         present(alert, animated: true, completion: nil)
     }
-    
-    
     
     //MARK: - TableView Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -83,13 +85,17 @@ class TodoListViewController: UITableViewController {
          Could have used this also: let cell = UITableViewCell(style: .default, reuseIdentifier: "TodoItemCell") */
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "TodoItemCell", for: indexPath)
-        cell.textLabel?.text = itemArray[indexPath.row]
+        
+        let item: Item = itemArray[indexPath.row]
+        cell.textLabel?.text = item.title
+        cell.accessoryType = item.done ? .checkmark : .none
+        
         return cell
     }
     
     //MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print(itemArray[indexPath.row])
+        print(itemArray[indexPath.row].title)
         
         /*  below method gets called by apple when we tap on a cell. And hence to remove that we will call deselectRow(at:animated:) method.
          
@@ -97,6 +103,9 @@ class TodoListViewController: UITableViewController {
         
         tableView.deselectRow(at: indexPath, animated: true)
 
+        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+        
+        /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
         let cell = tableView.cellForRow(at: indexPath)
         if cell?.accessoryType == UITableViewCellAccessoryType.checkmark {
             cell?.accessoryType = .none
@@ -107,10 +116,6 @@ class TodoListViewController: UITableViewController {
         /*  no need to reload, as and when we set the property, it would be in action.
             tableView.reloadRows(at: [indexPath], with: .automatic) */
     }
-    
-    
-    
-    
     
 }
 
