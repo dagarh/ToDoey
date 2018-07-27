@@ -14,10 +14,25 @@ class TodoListViewController: UITableViewController {
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
+    let defaults = UserDefaults.standard // This is going to get me a singleton object and it is thread safe.
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
+        
+        // Retrieving the stored array, array is always of type [Any]?, from UserDefaults singleton object.
+        /* defaults.array(forKey: "todoListArray") is not going to crash even if key is not present in plist file, in that case it would return nil. Whenever you are retrieving something from UserDefaults using key, even if key does not exist then app would not crash, it would return default value like 0 or 0.0 in case of int, float and double and nil in case of optionals. */
+        // nil as? [String] is always nil.
+        if let todoListArray = defaults.array(forKey: "todoListArray") as? [String] {
+            itemArray = todoListArray
+        }
+    }
+    
+    /* This would be called after the view has appeared. We are overriding this because at the time of view load, it might so happen that plist file inside the sandbox of app, does not get loaded. */
+    override func viewDidAppear(_ animated: Bool) {
+        
+        // Since this would be called after the tableView() methods, hence it is not prefered to fetch array here.
     }
     
     //MARK: - Add New Items
@@ -40,6 +55,10 @@ class TodoListViewController: UITableViewController {
                 self.itemArray.append(item)
                 self.tableView.reloadData()
             }
+            
+            /* Set the array in UserDefaults i.e in plist file inside the sandbox. While storing an array inside the UserDefault database, it is intelligent enough to determine the type of Array.  */
+            self.defaults.set(self.itemArray, forKey: "todoListArray")
+            
         }))
         
         present(alert, animated: true, completion: nil)
