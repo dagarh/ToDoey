@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
     
@@ -14,19 +15,14 @@ class TodoListViewController: UITableViewController {
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
-    /* FileManager.default is a singleton object which contains lot of urls, in an organised manner. We just need to get one for document directory. ".userDomainMask" is the user's home directory. In case of "NSUserDefaults", plist got saved in the "Library" section of sandboxing but here in case of "NSCoder", we would save plist in "Document" section of sandboxing of an app. */
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
-    /* Suppose if you want to store multiple categories of items then you have different-2 plists for each of the categories instead of having one big plist. And retrieve the plist as and when needed. So by this way we prevented ourself from loading the whole big plist so NSCoder is memory efficient way than NSUserDefaults. And also there is another advantage of storing our custom objects. */ 
-    
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
         
-        print(dataFilePath!)
-        
-        loadItems() // inorder to fetch the item array from "Item.plist".
+        // loadItems() // inorder to fetch the item array from "Item.plist".
     }
     
     //MARK: - Add New Items
@@ -47,9 +43,41 @@ class TodoListViewController: UITableViewController {
             let title = (alert.textFields?[0].text)!
             // let item = textField.text!
             if !title.isEmpty {
-                self.itemArray.append(Item(title: title, done: false))
+                
+                /*
+                 All the apps life cycle methods, inside AppDelegate class, would be called at appropriate time by UIApplication class. So, UIApplication class is a sender and AppDelegate class is a receiver. Hence AppDelegate class, which is a reciever, conforms to the UIApplicationDelegate protocol which has all the apps life cycle methods declared. UIApplication class, which is a sender, has a optional delegate property of type UIApplicationDelegate, which would be set as the object of AppDelegate by the Apple itself because apple is only responsible to create an object of UIApplication and AppDelegate class. So when AppDelegate object would be set in the optional delegate property declared in UIApplication, UIApplication can call all the life cycle methods defined in AppDelegate based on the reference of UIApplicationDelegate because under the hood object is of AppDelegate.
+                 
+                 
+                 Inside UIApplication class :
+                    unowned(unsafe) open var delegate: UIApplicationDelegate?
+                 
+                 
+                 Apple has to do below thing somewhere, ideally inside a receiver i.e AppDelegate class :
+                    (UIApplication object).delegate = (self or AppDelegate object)
+                 
+                 
+                 Now if I want to get the object of AppDelegate class, created by apple, then we can get it through the delegate property declared inside UIApplication class. In order to access delegate property inside UIApplication class, we need object of UIApplication class. Once we get object of UIApplication class then getting object of AppDelegte through delegate property is just a cakewalk. Since delegte property is of type UIApplicationDelegate(even though under the hood object is of type AppDelegate), we need to downcast the reference if we want to access those properties which are defined in AppDelegate and did not come from UIApplicationDelegate.
+                 
+                 
+                 Now if we want to get the object of UIApplication (object of UIApplication class is also called as current app instance) then we can get it like this :
+                        UIApplication.shared : it is going to return me the object of UIApplication class, which is a singleton class. So olny one instance of this class got created, which we have now.
+                 
+                 
+                 This is how UIApplication class looks like :
+                 open class UIApplication : UIResponder {
+                 
+                    open class var shared: UIApplication { get }
+                    unowned(unsafe) open var delegate: UIApplicationDelegate?
+                 
+                    ......lot of other properties and methods.
+                 }
+                 */
+                
+                let newItem = Item(context: self.context)
+                newItem.title = title; newItem.done = false
+                self.itemArray.append(newItem)
     
-                self.saveData() // whenever we update itemArray, we need to encode and write that to the "Items.plist"
+                self.saveItem() // whenever we update itemArray, we need to add it to sqlite db
                 
                 self.tableView.reloadData()
             }
@@ -81,7 +109,7 @@ class TodoListViewController: UITableViewController {
     
     //MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print(itemArray[indexPath.row].title)
+        print(itemArray[indexPath.row].title!)
         
         /*  below method gets called by apple when we tap on a cell. And hence to remove that we will call deselectRow(at:animated:) method.
          
@@ -91,7 +119,7 @@ class TodoListViewController: UITableViewController {
 
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
-        saveData() // whenever we update itemArray, we need to encode and write that to the "Items.plist"
+        saveItem() // whenever we update itemArray, we need to add it to the sqlite db.
         
         /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
         let cell = tableView.cellForRow(at: indexPath)
@@ -107,27 +135,13 @@ class TodoListViewController: UITableViewController {
     
     
     //MARK: - Model Manipulation Methods
-    func saveData() {
-        let encoder = PropertyListEncoder()
-        do {
-            /* encoding means converting one datatype to another datatype so that, that another datatype can be written to the plist. So here we converted the datatype from "Array<Item>" to "Data" */
-            let data = try encoder.encode(itemArray)
-            
-            // data is of "Data" datatype which can be written to the plist. So "Data" datatype is familier with the plist.
-            try data.write(to: dataFilePath!)
-        }catch let err as NSError{
-            print("Problem in encoding item array: \(err) ")
-        }
-    }
-    
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
+    func saveItem () {
+        if context.hasChanges {
             do {
-                /* decoder is also a way to convert one datatype to another datatype so that we can have it back. Here it is conveting from "Data" datatype to Array<Item> datatype. */
-                itemArray = try decoder.decode([Item].self, from: data)
-            }catch {
-                print("Problem in decoding item array: \(error)")
+                try context.save()
+            } catch {
+                let nserror = error as NSError
+                fatalError("Error saving context \(nserror), \(nserror.userInfo)")
             }
         }
     }

@@ -2,25 +2,22 @@
 //  Item.swift
 //  ToDoey
 //
-//  Created by Himanshu Dagar on 27/07/18.
+//  Created by Himanshu Dagar on 29/07/18.
 //  Copyright © 2018 Himanshu Dagar. All rights reserved.
 //
 
 import UIKit
+import CoreData
 
-/* This class must conform to the Encodable protocol. Then only "Item" type would be able to encode itself into a plist or JSON format using NSCoder. Always remember that a class can conform to Encodable, only if all of its properties are of standard datatypes, not custom datatypes. So class would not be able to conform to Encodable protocol if it is having at least one custom datatype. */
+/* "Item" is subclassing "NSManagedObject" and hence "Item" would be managed by the core data (CoreData is used to manage model layer objects) and also schema of this "Item" entity will be tracked by persistent container. After inheriting from "NSManagedObject", "Item" is CoreData - datamodel class. */
 
-/* This class must conform to the Decodable protocol. Then only "Item" type could be decoded from plist file and it also ensures that the properties of "Item" type is of the standard datatype only, not any custom datatype. */
-
-// Codable means it conforms to both Encodable and Decodable both.
-class Item: Codable {
+/* Main thing is this : All those classes which want to be part of CoreData model, have to inherit from NSManagedObject so that NSManagedObject class would know about all those classes whose schema need to be delivered to persistent container. */
+extension Item {
     
-    var title: String
-    var done: Bool
-    
-    init(title: String = "", done: Bool = false) {
+    // Since it is extension, so designated initializer can not be here.
+    convenience init(title: String, done: Bool) {
+        self.init()
         self.title = title
         self.done = done
     }
-    
 }
