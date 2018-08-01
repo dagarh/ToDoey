@@ -11,72 +11,81 @@ import CoreData
 
 class TodoListViewController: UITableViewController {
     
-    var itemArray = [Item]()
+    var itemArray = [Item]()  // Item is automatically monitored by persistent container.
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
     
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    
+    @IBOutlet weak var searchBar: UISearchBar!
+    
+    var selectedCategory: Category? {
+        didSet{
+            loadItems()
+        }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         /* No need to set delegate and datasource explicitly here. It comes automatically connected when you inherit from UITableViewController */
         
-        // loadItems() // inorder to fetch the item array from "Item.plist".
+        /* UISearchBar delegate property has been set to the object of TodoListViewController class through UI without creating its outlet here. See the extension below. */
+        
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tableViewTapped))
+        tableView.addGestureRecognizer(tapGesture)
+        
+        DispatchQueue.global(qos:.userInteractive).async {
+            print("First: \(Thread.isMainThread)  \(Thread.current)")
+            self.doSomeTimeConsumingTask() // takes 5 seconds to respond
+            DispatchQueue.main.async {
+                print("third: \(Thread.isMainThread)  \(Thread.current)")
+                // self.tableView.reloadData()
+            }
+        }
+    }
+    
+    func doSomeTimeConsumingTask() {
+        print("Second: \(Thread.isMainThread)  \(Thread.current)")
+        sleep(3)
+    }
+    
+    //TODO: Declare tableViewTapped here:
+    @objc func tableViewTapped() {
+        /* This will call the method "searchBarTextDidEndEditing". Also remember that after ending the editing in searchBar, keyboard would also go away. */
+        if searchBar.text?.count == 0 {
+            self.searchBar.endEditing(true)
+        }
     }
     
     //MARK: - Add New Items
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         
-        // var textField = UITextField()
+        var textField = UITextField()
         let alert = UIAlertController(title: "Add New Todoey Item", message: "", preferredStyle: .alert)
         
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new item"
-            // textField = alertTextField
+            textField = alertTextField
         }
         
         alert.addAction(UIAlertAction(title: "Add Item", style: .default, handler: { (action) in
-            
             // what will happen once the user clicks the Add Item button on our UIAlert
-            print((alert.textFields?[0].text)!)
-            let title = (alert.textFields?[0].text)!
-            // let item = textField.text!
+            
+            let title = textField.text!
+            
             if !title.isEmpty {
-                
-                /*
-                 All the apps life cycle methods, inside AppDelegate class, would be called at appropriate time by UIApplication class. So, UIApplication class is a sender and AppDelegate class is a receiver. Hence AppDelegate class, which is a reciever, conforms to the UIApplicationDelegate protocol which has all the apps life cycle methods declared. UIApplication class, which is a sender, has a optional delegate property of type UIApplicationDelegate, which would be set as the object of AppDelegate by the Apple itself because apple is only responsible to create an object of UIApplication and AppDelegate class. So when AppDelegate object would be set in the optional delegate property declared in UIApplication, UIApplication can call all the life cycle methods defined in AppDelegate based on the reference of UIApplicationDelegate because under the hood object is of AppDelegate.
-                 
-                 
-                 Inside UIApplication class :
-                    unowned(unsafe) open var delegate: UIApplicationDelegate?
-                 
-                 
-                 Apple has to do below thing somewhere, ideally inside a receiver i.e AppDelegate class :
-                    (UIApplication object).delegate = (self or AppDelegate object)
-                 
-                 
-                 Now if I want to get the object of AppDelegate class, created by apple, then we can get it through the delegate property declared inside UIApplication class. In order to access delegate property inside UIApplication class, we need object of UIApplication class. Once we get object of UIApplication class then getting object of AppDelegte through delegate property is just a cakewalk. Since delegte property is of type UIApplicationDelegate(even though under the hood object is of type AppDelegate), we need to downcast the reference if we want to access those properties which are defined in AppDelegate and did not come from UIApplicationDelegate.
-                 
-                 
-                 Now if we want to get the object of UIApplication (object of UIApplication class is also called as current app instance) then we can get it like this :
-                        UIApplication.shared : it is going to return me the object of UIApplication class, which is a singleton class. So olny one instance of this class got created, which we have now.
-                 
-                 
-                 This is how UIApplication class looks like :
-                 open class UIApplication : UIResponder {
-                 
-                    open class var shared: UIApplication { get }
-                    unowned(unsafe) open var delegate: UIApplicationDelegate?
-                 
-                    ......lot of other properties and methods.
-                 }
-                 */
                 
                 let newItem = Item(context: self.context)
                 newItem.title = title; newItem.done = false
+                
+                /* After coming to the child we set the parent, so with the below line, new item has automatically been added to the selectedCategory. So if you try to print like this : print((self.selectedCategory?.items)!), it will show. */
+                newItem.parentCategory = self.selectedCategory
+                
+                
                 self.itemArray.append(newItem)
-    
                 self.saveItem() // whenever we update itemArray, we need to add it to sqlite db
                 
                 self.tableView.reloadData()
@@ -117,6 +126,9 @@ class TodoListViewController: UITableViewController {
         
         tableView.deselectRow(at: indexPath, animated: true)
 
+//        context.delete(itemArray[indexPath.row])
+//        itemArray.remove(at: indexPath.row)
+        
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
         saveItem() // whenever we update itemArray, we need to add it to the sqlite db.
@@ -138,11 +150,87 @@ class TodoListViewController: UITableViewController {
     func saveItem () {
         if context.hasChanges {
             do {
+                // It is saving all the changes to persistent container from RAM.
                 try context.save()
             } catch {
                 let nserror = error as NSError
                 fatalError("Error saving context \(nserror), \(nserror.userInfo)")
             }
+        }
+    }
+    
+    func loadItems(withR request: NSFetchRequest<Item> = Item.fetchRequest(), withP predicate: NSPredicate? = nil) {
+        do {
+            print("Sixth: \(Thread.isMainThread)  \(Thread.current)")
+            
+            let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", (selectedCategory?.name)!)
+            
+            if let additionalPredicate = predicate {
+                request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate,additionalPredicate])
+                request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+            }else{
+                request.predicate = categoryPredicate
+            }
+            
+            // here we are fetching the data into context from the persistent container by sending the request.
+            itemArray = try context.fetch(request)
+            self.tableView.reloadData()
+            
+        } catch {
+            print("Error fetching data from context \(error)")
+        }
+    }
+}
+
+//MARK: - UISearchBar Delegate Methods
+// extensions are there for extending the functionaliy of Protocol/Class.
+extension TodoListViewController : UISearchBarDelegate {
+    
+    // This method gets called when "Search" button is pressed of keyboard.
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        if (searchBar.text?.count)! > 0 {
+            loadItems(withP: NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!))
+        }
+        searchBar.endEditing(true) // same as searchBar.resignFirstResponder()
+    }
+    
+    func searchBarTextDidBeginEditing(_ searchBar: UISearchBar) {
+        searchBar.showsCancelButton = true
+    }
+    
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        searchBar.showsCancelButton = false
+        loadItems()
+        searchBar.text = ""
+        searchBar.resignFirstResponder() // same as searchBar.endEditing(true)
+    }
+    
+    func searchBarTextDidEndEditing(_ searchBar: UISearchBar) {
+        // this method will be called by resignFirstResponder() or when we endEditing of seachBar.
+        searchBar.showsCancelButton = false
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+       // this would only get called when view gets touched, but here in this case we can not touch view on the screen.
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        
+        if searchBar.text?.count == 0 {
+            print("Fourth: \(Thread.isMainThread)  \(Thread.current)")
+            
+            self.loadItems()
+            
+            /* It is not ok to update the UI things using background thread. If there are 2 completely independent tasks then you have to do those tasks using diff-2 threads like this. */
+            /* Run on the main thread so that searchbar loses focus and keyboard is dimissed, even if background threads are running. Otherwise, app might assign this code to another thread because this code is independent to the loadItems() things. */
+            DispatchQueue.main.async {
+                print("Fifth: \(Thread.isMainThread)  \(Thread.current)")
+                // searchBar.endEditing(true)
+            }
+            
+        }else {
+            print("Seventh: \(Thread.isMainThread)  \(Thread.current)")
+            loadItems(withP: NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!))
         }
     }
     
