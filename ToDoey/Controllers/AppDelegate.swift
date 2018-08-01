@@ -7,8 +7,7 @@
 //
 
 import UIKit
-import CoreData
-
+import RealmSwift
 
 // This class name is AppDelegate because it is the delegate of UIApplication.
 @UIApplicationMain
@@ -22,38 +21,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         
         // TodoListViewController class properties would be initialized even before this method call.
         
-        return true
-    }
-
-    func applicationWillTerminate(_ application: UIApplication) {
-        self.saveContext()
-    }
-    
-    // MARK: - Core Data stack
-    lazy var persistentContainer: NSPersistentContainer = {
+        // This is the location for realm database file.
+        print(Realm.Configuration.defaultConfiguration.fileURL!)
         
-        let container = NSPersistentContainer(name: "DataModel")
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
-            if let error = error as NSError? {
-                fatalError("Unresolved error \(error), \(error.userInfo)")
-            }
-        })
-        return container
-    }()
-    
-    
-    // MARK: - Core Data Saving support
-    func saveContext () {
-        
-        let context = persistentContainer.viewContext
-        if context.hasChanges {
-            do {
-                try context.save()
-            } catch {
-                let nserror = error as NSError
-                fatalError("Unresolved error \(nserror), \(nserror.userInfo)")
-            }
+        do {
+            // it is creating the realm store on non-volatile memory.
+            _ = try Realm()
+        } catch{
+            print("Error initializing new realm, \(error)")
         }
+        
+        return true
     }
     
 }

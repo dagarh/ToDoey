@@ -7,13 +7,14 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
 
-    var categoryArray = [Category]()
+    /* Whenever we are creating realm db, it could throw error only first time because of less resources. But this is second time we are creating because we already did in AppDelegate. So using forced try could be ok here. As many times as we create this, it is gonna point to the same Realm db/file. */
+    let realm = try! Realm() // realm is pointing to the persistent realm store.
     
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    var categoryArray : Results<Category>?
     
     
     override func viewDidLoad() {
@@ -24,40 +25,36 @@ class CategoryViewController: UITableViewController {
     
     //MARK: - TableView DataSource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categoryArray.count
+        return categoryArray?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let categoryCell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
         
-        let category: Category = categoryArray[indexPath.row]
-        categoryCell.textLabel?.text = category.name
+        categoryCell.textLabel?.text = categoryArray?[indexPath.row].name ?? "No Categories Added Yet !!!"
         
         return categoryCell
     }
     
     //MARK: - Data Manipulation Methods
-    func loadCategories(request: NSFetchRequest<Category> = Category.fetchRequest()) {
-        do {
-            categoryArray = try context.fetch(request)
-        } catch {
-            print("Error fetching data into context \(error)")
-        }
+    func loadCategories() {
         
+        // loading from realm store in RAM. It is like Select * from Category
+        categoryArray = realm.objects(Category.self)
         tableView.reloadData()
     }
     
-    func saveCategories() {
-        if context.hasChanges {
-            do {
-                try context.save()
-            } catch let err as NSError {
-                print("Error saving context \(err)")
+    func save(category : Category) {
+        do {
+            // writing to realm persistent container.
+            try realm.write {
+                realm.add(category)
             }
+        } catch let err as NSError {
+            print("Error saving category \(err)")
         }
     }
-    
     
     //MARK: - Add New Category
     @IBAction func barButtonPressed(_ sender: UIBarButtonItem) {
@@ -74,11 +71,13 @@ class CategoryViewController: UITableViewController {
             let name = textField.text!
             
             if !name.isEmpty {
-                let newCategory = Category(context: self.context)
+                let newCategory = Category()
                 newCategory.name = name
                 
-                self.categoryArray.append(newCategory)
-                self.saveCategories() // whenever we update categoryArray, we need to add it to sqlite db
+                // No need of this, Category object is automatically being controlled here.
+               // self.categoryArray.append(newCategory)
+                
+                self.save(category : newCategory)   // whenever we update categoryArray, we need to add it to sqlite db
                 
                 self.tableView.reloadData()
             }
@@ -99,7 +98,8 @@ class CategoryViewController: UITableViewController {
             let todoListVC = segue.destination as! TodoListViewController
             
             if let indexPath = tableView.indexPathForSelectedRow {
-                todoListVC.selectedCategory = categoryArray[indexPath.row]
+                // Even if categoryArray is nil, still didSet will be called.
+                todoListVC.selectedCategory = categoryArray?[indexPath.row]
             }
         }
     }

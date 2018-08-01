@@ -7,20 +7,21 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class TodoListViewController: UITableViewController {
     
-    var itemArray = [Item]()  // Item is automatically monitored by persistent container.
+    let realm = try! Realm() // Pointing to the same realm container which we created earlier.
+    
+    var todoItems : Results<Item>?  // "Item" is automatically being monitored for Item objects by this array.
     
     // No need to create IBOutlet for the tableView because it automatically comes from the superclass.
-    
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     @IBOutlet weak var searchBar: UISearchBar!
     
     var selectedCategory: Category? {
         didSet{
+            // even if selectedCategory is set to nil, it would come here. So we need to handle cases accordingly.
             loadItems()
         }
     }
@@ -32,24 +33,8 @@ class TodoListViewController: UITableViewController {
         
         /* UISearchBar delegate property has been set to the object of TodoListViewController class through UI without creating its outlet here. See the extension below. */
         
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-        
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tableViewTapped))
         tableView.addGestureRecognizer(tapGesture)
-        
-        DispatchQueue.global(qos:.userInteractive).async {
-            print("First: \(Thread.isMainThread)  \(Thread.current)")
-            self.doSomeTimeConsumingTask() // takes 5 seconds to respond
-            DispatchQueue.main.async {
-                print("third: \(Thread.isMainThread)  \(Thread.current)")
-                // self.tableView.reloadData()
-            }
-        }
-    }
-    
-    func doSomeTimeConsumingTask() {
-        print("Second: \(Thread.isMainThread)  \(Thread.current)")
-        sleep(3)
     }
     
     //TODO: Declare tableViewTapped here:
@@ -78,15 +63,26 @@ class TodoListViewController: UITableViewController {
             
             if !title.isEmpty {
                 
-                let newItem = Item(context: self.context)
-                newItem.title = title; newItem.done = false
+                if let currentCategory = self.selectedCategory {
+                    do {
+                        try self.realm.write {
+                            /* Inside realm.write if you are making object of any realm data model class then realm knows that and hence would add that automatically to the database. */
+                            
+                            // whenever we are creating this Item object, it is automatically appended to todoItems Result array.
+                            let newItem = Item()
+                            newItem.title = title; newItem.done = false
+                            newItem.dateCreated = Date()
+                            
+                            /* After coming to the child we set this child to its Parent. Below line is automatically taking care of newItem.parentCategory = self.selectedCategory. In CoreData, we used to set parent to the child but here we are doing opposite, here we are setting child to the parent. */
+                            currentCategory.items.append(newItem)
+                        }
+                    } catch {
+                        print("Error saving new items \(error)")
+                    }
+                }
                 
-                /* After coming to the child we set the parent, so with the below line, new item has automatically been added to the selectedCategory. So if you try to print like this : print((self.selectedCategory?.items)!), it will show. */
-                newItem.parentCategory = self.selectedCategory
-                
-                
-                self.itemArray.append(newItem)
-                self.saveItem() // whenever we update itemArray, we need to add it to sqlite db
+               // This is automatically being done for us by Realm when you created the object for "Item" above.
+              //  self.todoItems.append(newItem)
                 
                 self.tableView.reloadData()
             }
@@ -97,89 +93,68 @@ class TodoListViewController: UITableViewController {
     
     //MARK: - TableView Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        print(itemArray.count)
-        return itemArray.count
+        return todoItems?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        /* You can use any of the tableView(local/global variable) here, both refers to the same object.
-         
-         Could have used this also: let cell = UITableViewCell(style: .default, reuseIdentifier: "TodoItemCell") */
-        
         let cell = tableView.dequeueReusableCell(withIdentifier: "TodoItemCell", for: indexPath)
         
-        let item: Item = itemArray[indexPath.row]
-        cell.textLabel?.text = item.title
-        cell.accessoryType = item.done ? .checkmark : .none
+        if let item = todoItems?[indexPath.row] {
+            cell.textLabel?.text = item.title
+            cell.accessoryType = item.done ? .checkmark : .none
+        }else {
+            cell.textLabel?.text = "No Items Added"
+        }
         
         return cell
     }
     
+    
+//    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+//        <#code#>
+//    }
+    
     //MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print(itemArray[indexPath.row].title!)
-        
         /*  below method gets called by apple when we tap on a cell. And hence to remove that we will call deselectRow(at:animated:) method.
          
-            tableView.selectRow(at: indexPath, animated: true, scrollPosition: .none) */
+         tableView.selectRow(at: indexPath, animated: true, scrollPosition: .none) */
         
-        tableView.deselectRow(at: indexPath, animated: true)
-
-//        context.delete(itemArray[indexPath.row])
-//        itemArray.remove(at: indexPath.row)
+        print("Prince")
         
-        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
-        
-        saveItem() // whenever we update itemArray, we need to add it to the sqlite db.
-        
-        /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
-        let cell = tableView.cellForRow(at: indexPath)
-        if cell?.accessoryType == UITableViewCellAccessoryType.checkmark {
-            cell?.accessoryType = .none
-        }else {
-            cell?.accessoryType = .checkmark
+        if let item = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    item.done = !item.done
+                }
+            }catch {
+                print("Error saving done status, \(error)")
+            }
         }
         
+        tableView.reloadData()
+       // tableView.deselectRow(at: indexPath, animated: true)
+        
+        /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
+        //        let cell = tableView.cellForRow(at: indexPath)
+        //        if cell?.accessoryType == UITableViewCellAccessoryType.checkmark {
+        //            cell?.accessoryType = .none
+        //        }else {
+        //            cell?.accessoryType = .checkmark
+        //        }
+        
         /*  no need to reload, as and when we set the property, it would be in action.
-            tableView.reloadRows(at: [indexPath], with: .automatic) */
+         tableView.reloadRows(at: [indexPath], with: .automatic) */
     }
     
     
     //MARK: - Model Manipulation Methods
-    func saveItem () {
-        if context.hasChanges {
-            do {
-                // It is saving all the changes to persistent container from RAM.
-                try context.save()
-            } catch {
-                let nserror = error as NSError
-                fatalError("Error saving context \(nserror), \(nserror.userInfo)")
-            }
-        }
+    
+    func loadItems() {
+            todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
+            self.tableView.reloadData()
     }
     
-    func loadItems(withR request: NSFetchRequest<Item> = Item.fetchRequest(), withP predicate: NSPredicate? = nil) {
-        do {
-            print("Sixth: \(Thread.isMainThread)  \(Thread.current)")
-            
-            let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", (selectedCategory?.name)!)
-            
-            if let additionalPredicate = predicate {
-                request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate,additionalPredicate])
-                request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-            }else{
-                request.predicate = categoryPredicate
-            }
-            
-            // here we are fetching the data into context from the persistent container by sending the request.
-            itemArray = try context.fetch(request)
-            self.tableView.reloadData()
-            
-        } catch {
-            print("Error fetching data from context \(error)")
-        }
-    }
 }
 
 //MARK: - UISearchBar Delegate Methods
@@ -189,7 +164,9 @@ extension TodoListViewController : UISearchBarDelegate {
     // This method gets called when "Search" button is pressed of keyboard.
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         if (searchBar.text?.count)! > 0 {
-            loadItems(withP: NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!))
+            
+            todoItems = selectedCategory?.items.filter(NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)).sorted(byKeyPath: "dateCreated", ascending: true)
+            tableView.reloadData()
         }
         searchBar.endEditing(true) // same as searchBar.resignFirstResponder()
     }
@@ -215,22 +192,11 @@ extension TodoListViewController : UISearchBarDelegate {
     }
     
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        
         if searchBar.text?.count == 0 {
-            print("Fourth: \(Thread.isMainThread)  \(Thread.current)")
-            
             self.loadItems()
-            
-            /* It is not ok to update the UI things using background thread. If there are 2 completely independent tasks then you have to do those tasks using diff-2 threads like this. */
-            /* Run on the main thread so that searchbar loses focus and keyboard is dimissed, even if background threads are running. Otherwise, app might assign this code to another thread because this code is independent to the loadItems() things. */
-            DispatchQueue.main.async {
-                print("Fifth: \(Thread.isMainThread)  \(Thread.current)")
-                // searchBar.endEditing(true)
-            }
-            
         }else {
-            print("Seventh: \(Thread.isMainThread)  \(Thread.current)")
-            loadItems(withP: NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!))
+            todoItems = selectedCategory?.items.filter(NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)).sorted(byKeyPath: "dateCreated", ascending: true)
+            tableView.reloadData()
         }
     }
     
