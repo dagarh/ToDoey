@@ -33,8 +33,8 @@ class TodoListViewController: UITableViewController {
         
         /* UISearchBar delegate property has been set to the object of TodoListViewController class through UI without creating its outlet here. See the extension below. */
         
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tableViewTapped))
-        tableView.addGestureRecognizer(tapGesture)
+//            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(self.tableViewTapped))
+//            self.tableView.addGestureRecognizer(tapGesture)
     }
     
     //TODO: Declare tableViewTapped here:
@@ -120,8 +120,6 @@ class TodoListViewController: UITableViewController {
          
          tableView.selectRow(at: indexPath, animated: true, scrollPosition: .none) */
         
-        print("Prince")
-        
         if let item = todoItems?[indexPath.row] {
             do {
                 try realm.write {
@@ -133,7 +131,7 @@ class TodoListViewController: UITableViewController {
         }
         
         tableView.reloadData()
-       // tableView.deselectRow(at: indexPath, animated: true)
+        tableView.deselectRow(at: indexPath, animated: true)
         
         /* Instead of below code, you could also call reloadData() on tableView to get the desired result but that is not an efficient way. */
         //        let cell = tableView.cellForRow(at: indexPath)
